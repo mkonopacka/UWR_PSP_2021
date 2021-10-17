@@ -1,7 +1,9 @@
 ---
 title: "Laboratorium 5"
 author: "Martyna Konopacka"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include = FALSE}
@@ -14,7 +16,7 @@ $$\bar{X_1} - \bar{X_2} \pm t(df)_{\frac{\alpha}{2}}  SE $$
 gdzie średni błąd standardowy można obliczyć na dwa sposoby, przy czym jako $SE_1$ oznaczamy liczbę $\frac{s_1}{\sqrt{n_1}}$ i analogicznie dla $SE_2$:
 
 a. $(N)SE = \sqrt{SE_1^2 + SE_2^2}$ to błąd nieuśredniony, stosowany w większości wypadków
-b. $SE = $ jest uśredniony i będzie tutaj stosowany, gdy $\sigma_1 = \sigma_2$ lub jest to wyraźnie zaznaczone w treści zadania.
+b. $SE$ TODO dopisać wzór jest uśredniony i będzie tutaj stosowany, gdy $\sigma_1 = \sigma_2$ lub jest to wyraźnie zaznaczone w treści zadania.
 
 Należy też określić sposób obliczania liczby stopni swobody:
 $$df = \frac{(SE_1^2 + SE_2^2)^2}{\frac{SE_1^4}{n_1 - 1} + \frac{SE_2^4}{n_2 - 1}}$$

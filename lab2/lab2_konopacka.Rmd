@@ -1,7 +1,9 @@
 ---
 title: 'PSP: Laboratorium 2'
 author: "Martyna Konopacka"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include = FALSE}
@@ -81,7 +83,7 @@ grid.arrange(plot_20, plot_50, plot_100, plot_200, plot_300, plot_all,
 ```
 
 Widać, że wraz ze wzrostem liczebności próby, rozkład próbkowy upodabnia się do rozkładu w populacji. Wyniki dla $n = 20$ uznawanego w statystyce często za zbyt małą próbę wyraźnie odbiegają od kształtu dla populacji, natomiast dla $n = 300$ wykresy są już bardzo podobne.
-Jest to w zgodzie z prawem wielkich liczb, które mówi o tym, że gdy $n$ się zwiększa, parametry estymowane w próbie dążą do parametrów populacji.
+Jest to w zgodzie z prawem wielkich liczb, które mówi o tym, że gdy $n$ sie zwiększa, parametry estymowane w próbie dążą do parametrów populacji.
 
 ### Zadanie 3
 ```{r echo=FALSE}
