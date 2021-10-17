@@ -1,0 +1,2 @@
+"0","library(gridExtra)"
+"0","g <- grid.arrange(zad4_kl$pw, zad4_kl$pk, zad4_kl$pp, zad4_AC$pw, zad4_AC$pk, zad4_AC$pp, nrow = 2) # TODO zmienić szerokość"

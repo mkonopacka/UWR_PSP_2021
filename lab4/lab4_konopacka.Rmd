@@ -1,0 +1,263 @@
+---
+title: "Laboratorium 4"
+author: "Martyna Konopacka"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(stats)
+load('grades.RData')
+load('income.RData')
+```
+
+### Zadanie 1
+W tym zadaniu sprawdzamy, jak duża jest różnica, gdy konstruując przedział dla nieznanego $\sigma$ użyjemy kwantyli rozkładu normalnego, zamiast t-Studenta. Przeprowadziłam najpierw eksperymenty z liczbą iteracji $200$, jednak kiedy powtórzyłam je kilkukrotnie, zauważyłam duże wahania w wynikach wynikające z losowości i powtórzyłam eksperyment dla $1000$ losowań. Sprawdziłam dodatkowo też próby rozmiaru $n = 50$.
+```{r echo=TRUE}
+glob_iter = 200
+# Funkcja zwracające prawy przedziały ufności oparte na: 1.rozkładzie normalnym z szacowaniem sigma 2.rozkładzie Studenta (X - próba)
+interval1 <- function(X, opt = 1, lvl = 0.95){
+  alpha <- 1 - lvl
+  X_ <- mean(X)
+  n <- length(X)
+  s <- sd(X)
+  if (opt == 1){a <- qnorm(1 - alpha/2)}
+  if (opt == 2){a <- qt(1 - alpha/2, n-1)}
+  expr <- a*s/sqrt(n)
+  return (c(X_ - expr, X_ + expr))
+}
+
+# Funkcja losująca próbę rozmiaru n z rozkładu normalnego N(mu,si) iter razy i sprawdzająca jak często prawdziwe mu zawiera się w przedziale ufności; Szacowanie przez `opt`: 1 - rozkład normalny 2 - rozkład Studenta
+experiment1 <- function(n = 10, opt = 1, iter = glob_iter, lvl = 0.95, mu = 0, si = 1){
+  inside <- 0
+  for (i in 1:iter){
+    X <- rnorm(n, mu, si)
+    interval <- interval1(X, opt, lvl)
+    if (between(mu, interval[1], interval[2])){inside <- inside + 1}
+  }
+  return(data.frame(
+    mu = mu,
+    si = si,
+    n = n,
+    opt = opt,
+    inside = inside/iter,
+    lvl = lvl,
+    iter = iter
+  ))
+}
+```
+```{r echo=FALSE}
+glob_iter = 200
+results <- rbind(experiment1(opt = 1), experiment1(opt = 2), experiment1(n = 50, opt = 1), experiment1(n = 50, opt = 2), experiment1(n = 100, opt = 1), experiment1(n = 100, opt = 2))
+
+glob_iter = 1000
+results <- rbind(results, experiment1(opt = 1), experiment1(opt = 2), experiment1(n = 50, opt = 1), experiment1(n = 50, opt = 2), experiment1(n = 100, opt = 1), experiment1(n = 100, opt = 2))
+results %>% knitr::kable(caption = 'Podsumowanie wyników w zadaniu 1')
+```
+
+Można zauważyć, że gdy $n$ jest małe, przybliżenie rozkładem normalnym jest dużo gorsze niż rozkładem Studenta. W miarę ze wzrostem liczebności próby rozkłady coraz bardziej zbliżają się do siebie, więc błąd przybliżenia maleje.
+
+### Zadanie 2
+W tym zadaniu zakładamy, że dane pochodzą z pewnej populacji - nie znamy więc parametru $\sigma$ i używamy szacowania z użyciem rozkładu Studenta z zadania 1.
+```{r echo=FALSE}
+IQ <- grades$IQ
+resultsIQ <- data.frame(lvl = numeric(0), low = numeric(0), high = numeric(0))
+for (lvl in list(0.99, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5)){
+  I <- interval1(IQ, opt = 2, lvl = lvl) # opt = 2 czyli kwantyl z t-Studenta
+  resultsIQ <- rbind(resultsIQ, data.frame(lvl = lvl, low = I[1], high = I[2]))
+}
+resultsIQ %>% mutate(width = high - low) %>% knitr::kable(caption = 'Wyniki dla zmiennej IQ')
+
+Psych <- grades$TestPsych
+resultsP <- data.frame(lvl = numeric(0), low = numeric(0), high = numeric(0))
+for (lvl in list(0.99, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5)){
+  I <- interval1(Psych, opt = 2, lvl = lvl) # opt = 2 czyli kwantyl z t-Studenta
+  resultsP <- rbind(resultsP, data.frame(lvl = lvl, low = I[1], high = I[2]))
+}
+resultsP %>% mutate(width = high - low) %>% knitr::kable(caption = 'Wyniki dla zmiennej TestPsych')
+
+```
+
+Gdy zwiększamy poziom istotności, zmniejszamy $\alpha$ i maleje ryzyko popełnienia błędu typu I, a przedział ufności zawęża się.
+
+### Zadanie 3
+W tym zadaniu porównujemy dwa sposoby konstrukcji przedziału ufności dla frakcji: metodę klasyczną (opisaną w poprzednim raporcie) i metodę Agrestiego-Coulla. Wg. wykładu klasyczny przedział ufności może zawodzić, gdy liczba sukcesów jest bliska $0$ lub $n$ - tzn. gdy prawdziwy parametr frakcji $p$ jest blisko $0$ lub $1$.
+
+**Przedział ufności Agrestiego-Coulla**
+
+Wprowadzamy następujące modyfikacje: 
+
+1. za środek przedziału zamiast $\frac{Y}{n}$ przyjmujemy $\tilde{p} = \frac{Y + 0.5(u_{1 - \frac{\alpha}{2}})^2}{n + (u_{1 - \frac{\alpha}{2}})^2}$, gdzie $Y$ oznacza liczbę sukcesów.
+
+2. zamiast szacowanego jak poprzednio błędu standardowego użyjemy teraz $\sqrt{\frac{\tilde{p}(1-\tilde{p})}{n + (u_{1 - \frac{\alpha}{2}})^2}}$
+
+```{r echo=TRUE}
+# Funkcja zwraca lewy i prawy brzeg przedziału ufności dla p; V powinien być wektorem TRUE / FALSE;
+# opt: 1 - klasyczny, 2 - Agrestiego-Coulle
+przedzial_p <- function(V, opt = 1, poziom = 0.95){
+  n <- length(V)
+  u <- qnorm(p = 1 - (1-poziom)/2)
+  if (opt == 1){
+    p <- sum(V)/length(V) # środek przedziału
+    SE <- sqrt((p*(1-p)/n)) # błąd standardowy
+  }
+  if (opt == 2){
+    Y <- sum(V)
+    p <- (Y + 0.5 * u^2)/(n + u^2) # środek przedziału
+    SE <- sqrt((p*(1-p)/(n+ 0.5 * u^2))) # błąd standardowy
+  }
+  return(c(p - u*SE, p+ u*SE))
+}
+
+# Funkcja zwraca estymator punktowy p w oparciu o wektor V (TRUE/FALSE); opt: 1 - klasycznie, 2 - Agrestiego-Coulle na poziomie lvl
+estim_p <- function(V, opt = 1, lvl = 0.95){
+  n = length(V)
+  if (opt == 1){
+    return(sum(V)/n)
+    }
+  else if (opt == 2){
+    u = qnorm(1 - (1-lvl)/2)
+    return ( (sum(V) + 0.5 * u^2)/(n + u^2) )
+}
+}
+```
+```{r echo=FALSE}
+# dataframe z TRUE/FALSE na potrzeby wyznaczania frakcji
+income_bool <- income %>% mutate(
+  W = Education >= 5,
+  K  = Gender == 'K',
+  P  = Sector == 5,
+  .keep = 'none'
+)
+# Wyznaczane raz prawdziwe parametry (cały zbiór)
+real_pw <- mean(income_bool$W)
+real_pk <- mean(income_bool$K)
+real_pp <- mean(income_bool$P)
+
+experiment2 <- function(opt = 1, n = 200, iter = 200, lvl = 0.95){
+  name <- ifelse(opt == 1, 'klasyczny', 'A-C')
+  # Funkcja zwraca listę z histogramem i dataframe wyników zad. 3
+  pw <- numeric(iter)
+  pk <- numeric(iter)
+  pp <- numeric(iter)
+  
+  # liczniki jak często przedział zawiera prawdziwy parametr
+  pw_count <- 0
+  pk_count <- 0
+  pp_count <- 0
+  
+  # skumulowane szerokości przedziałów
+  pw_w <- 0
+  pk_w <- 0
+  pp_w <- 0
+  
+  for (i in 1:iter){
+    X <- sample_n(income_bool, 200)
+    W <- X$W
+    K <- X$K
+    P <- X$P
+    # zapisanie estymatora punktowego 
+    pw[i] <- estim_p(W, opt, lvl)
+    pk[i] <- estim_p(K, opt, lvl)
+    pp[i] <- estim_p(P, opt, lvl)
+    # wyznaczanie przedziałów
+    Iw <- przedzial_p(W, opt, lvl)
+    Ik <- przedzial_p(K, opt, lvl)
+    Ip <- przedzial_p(P, opt, lvl)
+    # dodanie ich szerokości
+    pw_w <- pw_w + Iw[2] - Iw[1]
+    pk_w <- pk_w + Ik[2] - Ik[1]
+    pp_w <- pp_w + Ip[2] - Ip[1]
+    # sprawdzenie czy zawierają prawdziwy parametr (frakcję w całym zbiorze income)
+    if (between(real_pw, Iw[1], Iw[2])){pw_count <- pw_count + 1}
+    if (between(real_pk, Ik[1], Ik[2])){pk_count <- pk_count + 1}
+    if (between(real_pp, Ip[1], Ip[2])){pp_count <- pp_count + 1}
+  }
+  # tworzenie histogramów
+  pw_hist <- qplot(pw, xlab = '', ylim = c(0,n/2), geom = 'histogram', main = paste('Estymator pw: ', name), fill = I('Blue'))
+  pk_hist <- qplot(pk, xlab = '', ylim = c(0,n/2), geom = 'histogram', main = paste('Estymator pk: ', name), fill = I('Red'))
+  pp_hist <- qplot(pp, xlab = '', ylim = c(0,n/2), geom = 'histogram', main = paste('Estymator pp: ', name), fill = I('Green'))
+  # tworzenie podsumowania
+  summar <- data.frame(
+    estymator = name,
+    n = n,
+    iter = iter,
+    pw_width = mean(pw_w),
+    pk_width = mean(pk_w),
+    pp_width = mean(pp_w),
+    pw_percent = sum(pw_count)/iter,
+    pk_percent = sum(pk_count)/iter,
+    pp_percent = sum(pp_count)/iter
+  )
+  return (list(pw = pw_hist, pk = pk_hist, pp = pp_hist, summar = summar))
+}
+
+zad4_kl <- experiment2()
+zad4_AC <- experiment2(opt = 2)
+rbind(zad4_kl$summar, zad4_AC$summar) %>% knitr::kable(caption = 'Porównanie wyników w zadaniu 3')
+```
+
+Oba estymatory dają porównywalne wyniki. Poniżej histogramy estymatorów punktowych otrzymanych dwoma sposobami.
+```{r echo=FALSE, fig.width=12,fig.height= 10}
+library(gridExtra)
+g <- grid.arrange(zad4_kl$pw, zad4_kl$pk, zad4_kl$pp, zad4_AC$pw, zad4_AC$pk, zad4_AC$pp, nrow = 2) # TODO zmienić szerokość
+```
+
+
+### Dodatkowe eksperymenty do zadania 3
+Przeprowadziłam dodatkowe eksperymenty w celu sprawdzenia, czy różnica pomiędzy metodami będzie widoczna w testach na próbie, dla której liczba sukcesów jest bliska $0$ lub $n$.
+```{r echo=TRUE}
+
+experiment2b <- function(real_p = 0.5, opt = 1, n = 200, iter = 1000, lvl = 0.95){
+  name <- ifelse(opt == 1, 'klasyczny', 'A-C')
+  # Funkcja zwraca listę z histogramem i dataframe wyników jak w zadaniu 3 ale dla prób z rozkładu Bernoulliego z dowolnym p
+  # wektor na estymatory punktowe
+  p <- numeric(iter)
+
+  # liczniki jak często przedział zawiera prawdziwy parametr
+  p_count <- 0
+  
+  # skumulowane szerokości przedziałów
+  p_w <- 0
+  
+  for (i in 1:iter){
+    X <- rbernoulli(n, real_p)
+    
+    # zapisanie estymatora punktowego 
+    p[i] <- estim_p(X, opt, lvl)
+    
+    # wyznaczanie przedziałów
+    I <- przedzial_p(X, opt, lvl)
+    
+    # dodanie ich szerokości
+    p_w <- p_w + I[2] - I[1]
+    
+    # sprawdzenie czy zawierają prawdziwy parametr (frakcję w całym zbiorze income)
+    if (between(real_p, I[1], I[2])){p_count <- p_count + 1}
+    
+  }
+  # tworzenie histogramu
+  hist <- qplot(p, xlab = '', geom = 'histogram', main = paste('Estymator p: ', name), fill = I('Blue'))
+  
+  # tworzenie podsumowania
+  summar <- data.frame(
+    p = real_p,
+    lvl = lvl,
+    estymator = name,
+    n = n,
+    iter = iter,
+    mean_width = mean(p_w),
+    p_percent = sum(p_count)/iter
+  )
+  return (summar = summar)
+}
+
+results_extr <- rbind(experiment2b(0.005), experiment2b(0.005, opt = 2), experiment2b(0.01), experiment2b(0.02), experiment2b(0.1), experiment2b(0.9), experiment2b(0.95), experiment2b(0.99),
+                      experiment2b(0.01, opt = 2), experiment2b(0.02, opt = 2), experiment2b(0.1, opt = 2), experiment2b(0.9, opt = 2), experiment2b(0.95, opt = 2), experiment2b(0.99, opt = 2))
+
+results_extr[order(results_extr$p), ] %>% mutate(rel_difference = (lvl - p_percent)/lvl) %>% knitr::kable(caption = 'Dodatkowe eksperymenty w zadaniu 3 - wyniki')
+  ```
+
+W ostatniej kolumnie tabeli widać błąd względny pomiędzy odsetkiem parametrów w przedziale teoretycznym, a wyznaczonym. Dla skrajnych wartości $p$ (tj. mniejszych od 0.01 lub większych od 0.99) klasyczna metoda rzeczywiście daje wyniki wyraźnie gorsze niż metoda Agrestiego-Coull\'a.
+Dodatkowo można zauważyć, że wszystkie ujemne wartości w tej kolumnie pochodzą z estymacji metodą A-C (są to przypadki, gdzie oszacowany przedział zawiera więcej obserwacji prawdziwego parametru niż powinien, tzn. jest za szeroki.)

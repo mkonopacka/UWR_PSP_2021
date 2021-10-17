@@ -1,0 +1,142 @@
+---
+title: 'PSP: Laboratorium 2'
+author: "Martyna Konopacka"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(grid)
+library(gridExtra)
+load('grades.RData')
+load('income.RData')
+```
+
+### Zadanie 1
+W tym zadaniu korzystamy z **nierówności Czebyszewa** w następującej postaci: 
+$$P(|X-\mu| > k \sigma) < \frac{1}{k} $$
+wynika z niej, że w przedziale szerokości $k \sigma$ wokół $\mu$ powinno leżeć conajmniej $1 - \frac{1}{k}$ obserwacji, czyli odpowiednio około: $0%, 75%, 89%$ dla $k = 1,2,3$. Do tych wartości porównamy wyniki doświadczenia dla rozkładów: wykładniczego i Poissona.
+
+Dla rozkładu normalnego dysponujemy dodatkowymi obliczeniami, z których wynika, że w kolejnych przedziałach powinno leżeć odpowiednio $68%, 95%, 99,7%$ obserwacji - zasadę tę nazywa się **zasadą trzech sigm**. Co istotne, zasada ta nie daje dolnego ograniczenia, jak w nierówności Czebyszewa, a konkretne odseteki (równocześnie spełniają one nierówność, bo $68 > 0$, $95 > 75$ i  $99.8 > 89$). 
+
+```{r echo=FALSE}
+n = 1000
+sample_pois <- rpois(n,2)
+sample_exp <- rexp(n, 2)
+sample_std <- rnorm(n)
+
+mi_pois <- mean(sample_pois)
+mi_exp <- mean(sample_exp)
+mi_std <- mean(sample_std)
+
+sd_pois <- sd(sample_pois)
+sd_exp <- sd(sample_exp) 
+sd_std <- sd(sample_std)
+
+comparison <- 
+  data.frame(k = c(1,2,3),
+             pois_th_min = c(0, 75, 89),
+             pois_sa = numeric(3),
+             exp_th_min = c(0, 75, 89),
+             exp_sa = numeric(3),
+             std_th = c(0.68, 0.95, 0.99),
+             std_sa = numeric(3)
+  )
+
+for (k in 1:3){
+  pois_l = mi_pois - k * sd_pois
+  pois_h = mi_pois + k * sd_pois
+  comparison$pois_sa[k] <- sum(between(sample_pois, pois_l, pois_h))/n
+  
+  exp_l = mi_exp - k * sd_exp
+  exp_h = mi_exp + k * sd_exp
+  comparison$exp_sa[k] <- sum(between(sample_exp, exp_l, exp_h))/n
+  
+  std_l = mi_std - k * sd_std
+  std_h = mi_std + k * sd_std
+  comparison$std_sa[k] <- sum(between(sample_std, std_l, std_h))/n
+}
+
+comparison %>% knitr::kable(caption = 'Teoretyczne i prawdziwe odsetki dla rozkladow')
+```
+
+* wyniki dla rozkładu normalnego są bardzo blisko teoretycznych wartości, co znaczy że rozmiar próby był wystarczający. 
+* w przypadku dwóch pozostałych rozkładów odsetki są rzeczywiście większe niż minimalne odsetki wynikające z nierówności.
+
+### Zadanie 2
+
+```{r echo=FALSE}
+all <- income$Income
+plot_all <- qplot(all, xlab = '', main = '458 (populacja)')
+plot_20 <- qplot(sample(all,20), xlab = '', main = '20')
+plot_50 <- qplot(sample(all,50), xlab = '', main = '50')
+plot_100 <- qplot(sample(all,100), xlab = '', main = '100')
+plot_200 <- qplot(sample(all,200), xlab = '', main = '200')
+plot_300 <- qplot(sample(all,300), xlab = '', main = '300')
+
+grid.arrange(plot_20, plot_50, plot_100, plot_200, plot_300, plot_all, 
+             ncol = 3,
+             top = textGrob("Histogramy zabrobkow dla prob losowych o roznej liczebnosci", gp = gpar(fontsize = 15)))
+```
+
+Widać, że wraz ze wzrostem liczebności próby, rozkład próbkowy upodabnia się do rozkładu w populacji. Wyniki dla $n = 20$ uznawanego w statystyce często za zbyt małą próbę wyraźnie odbiegają od kształtu dla populacji, natomiast dla $n = 300$ wykresy są już bardzo podobne.
+Jest to w zgodzie z prawem wielkich liczb, które mówi o tym, że gdy $n$ się zwiększa, parametry estymowane w próbie dążą do parametrów populacji.
+
+### Zadanie 3
+```{r echo=FALSE}
+iter = 200 # może zechcę przetestować inne n
+sample_means_200 <- numeric(iter)
+sample_means_20 <- numeric(iter)
+sample_means_100 <- numeric(iter)
+for (i in 1:iter){
+  sample_means_20[i] <- mean(sample(all, 20))
+  sample_means_100[i] <- mean(sample(all, 100))
+  sample_means_200[i] <- mean(sample(all, 200))
+}
+
+p20 <- qplot(sample_means_20, main = 'n = 20', xlab = '') +
+  geom_vline(data = NULL, xintercept = mean(all), col = 'red') +
+  geom_vline(data = NULL, xintercept = mean(sample_means_20))
+
+
+p100 <- qplot(sample_means_100, main = 'n = 100', xlab = '') +
+  geom_vline(data = NULL, xintercept = mean(all), col = 'red') +
+  geom_vline(data = NULL, xintercept = mean(sample_means_100))
+
+p200 <- qplot(sample_means_200, main = 'n = 200', xlab = '') +
+  geom_vline(data = NULL, xintercept = mean(all), col = 'red') +
+  geom_vline(data = NULL, xintercept = mean(sample_means_200))
+
+grid.arrange(p20,p100,p200,ncol = 3,
+             top = textGrob("Histogramy srednich probkowych dla prob o roznej liczebnosci", gp = gpar(fontsize = 15)))
+
+
+```
+
+**Centralne Twierdzenie Graniczne** mówi, że dla dowolnego rozkładu o znanym odchyleniu standardowym  $\sigma$ i wartości oczekwianej $\mu$, wraz ze wzrostem liczebności próby statystyka $\bar{X} = \frac{1}{n} \sum{x_i}$ dąży w rozkładzie do rozkładu normalnego o średniej $\mu$ i odchyleniu standardowym $\frac{\sigma}{\sqrt{n}}$. Żeby to sprawdzić przeprowadziłam dodatkowe doświadczenia mające na celu porównanie prób o różnej liczebności - wyniki potwierdziły treść twierdzenia. Patrząc na oś X, można zauważyć zmniejszającą się wariancję, a wykres kształtem przypomina rozkład normalny. Przy zwiększeniu liczby powtórzeń eksperymentu możnaby zauważyć upodobnienie się do krzywej normalnej.
+
+### Zadanie 4
+Rozkład zmiennej $X$ o rozkładzie $B(n,p)$ możemy przybliżać rozkładem $N(np, \sqrt{np(1-p)})$. Losujemy po 100 razy zmienną z rozkładu $B(100, 0.3)$ oraz $N(30, \sqrt{21})$ i obliczamy odsetek obserwacji w przedziałach $(a,b)$ dla różnych liczb brzegowych.
+
+```{r echo=FALSE}
+bernoulli <- rbinom(100, 100, 0.3)
+normal_approx <- rnorm(100, 30, sqrt(21)) 
+wyniki <- data.frame(a = c(-10, 0, 10, 30 - 3*sqrt(21), 30 - 2*sqrt(21), 30 - sqrt(21)),
+                     b = c(0, 10, 20, 30 + 3*sqrt(21), 30 + 2*sqrt(21), 30 + sqrt(21)),
+                     odsetek_bernoulli = numeric(6),
+                     odsetek_normalny = numeric(6))
+
+for (i in 1:6){
+  a = wyniki$a[i]
+  b = wyniki$b[i]
+  wyniki$odsetek_bernoulli[i] <- sum(between(bernoulli, a, b))/100
+  wyniki$odsetek_normalny[i] <- sum(between(normal_approx, a, b))/100
+}
+
+wyniki %>% knitr::kable(caption = 'Wyniki eksperymentu')
+```
+
+* trzy ostatnie przedziały wybrałam tak, by odpowiadały przedziałom z reguły trzech sigm
+* przybliżenie jest dosyć dobre
+* gdy zwiększy się liczbę losowań, widać zbliżanie się obu wartości do odsetków teoretycznych

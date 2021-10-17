@@ -1,0 +1,229 @@
+---
+title: "Laboratorium 3"
+author: "Martyna Konopacka"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warnings = FALSE, message = FALSE)
+library(tidyverse)
+library(formattable)
+```
+
+### Zadanie 1
+Przedział ufności dla wartości oczekiwanej na poziomie $1-\alpha$ jest postaci 
+$$(\bar{X} - z_{1 - \frac{\alpha}{2}}\frac{\sigma}{\sqrt{n}} , \bar{X} + z_{1 - \frac{\alpha}{2}}\frac{\sigma}{\sqrt{n}})$$
+gdzie $z_{1 - \alpha/2}$ jest kwantylem rzędu $1 - {\alpha/2}$ rozkładu standardowego (dla poziomu ufności 95% mamy $z_{\alpha/2} = 1.96$), $\bar{X}$ to średnia z próby. W zadaniu zakładamy, że odchylenie standardowe jest znane i wynosi $\sigma = 1$. 
+
+Celem eksperymentu jest sprawdzenie, w jakim odsetku powtórzeń eksperymentu średnia populacji $\mu = 0$ rzeczywiście mieści się w wyznaczonym przedziale. 
+```{r echo=FALSE}
+eksperyment1 <- function(mu = 0, sd = 1, n = 100, poziom = 0.95, iter = 1000){
+  trafione <- 0
+  szer_suma <- 0
+  z <- qnorm(1 - (1-poziom)/2, mu, sd)
+  for (i in 1:iter){
+    X <- rnorm(n, mu, sd)
+    meanX <- mean(X)
+    low <- meanX - z*sd/sqrt(n)
+    high <- meanX + z*sd/sqrt(n)
+    szer_suma <- szer_suma + high - low
+    
+    if (between(mu, low, high)){
+      trafione <- trafione + 1
+    }
+  }
+  return (data.frame(mu = mu, 
+            sd = sd, 
+            n = as.integer(n), 
+            poziom = poziom, 
+            iter = as.integer(iter), 
+            trafienia = trafione/iter,
+            sr_szer_przedzialu = szer_suma/iter))
+}
+
+eksperyment1() %>% 
+  rbind(eksperyment1(n = 200)) %>%
+  knitr::kable(caption = 'Wyniki dla podpunktow b i c')
+```
+
+W obu przypadkach odsetki są bardzo zbliżone do wyznaczonych teoretycznie wartości - jest tak dlatego, że $n$ powyżej $30$ jest już wystarczająco duże. Dzięki sprawdzeniu średnich szerokości przedziałów można zauważyć, jak zwiększenie liczebności próby wpływa na zawężenie przedziału.
+
+### Zadanie 2
+```{r echo=FALSE}
+load('income.RData')
+D <- income$Income
+sd <- sd(D)
+m <- mean(D)
+hist1 <- qplot(D, geom = 'histogram', xlab = '', main = 'Histogram zmiennej D', fill = I('blue'), alpha = I(0.5))
+hist1
+```
+
+Patrząc na histogram można domyślać się, że rozkład nie będzie normalny - w szczególności normalność psują obserwacje odstające z prawej strony wykresu. W części pierwszej sprawdzimy, czy odsetki obserwacji zmiennej $D$ w odległościach $\sigma, 2\sigma, 3\sigma$ od średniej są zbliżone do wartości wynikających z reguły trzech sigm. Odchylenie standardowe w populacji z zadania wynosi $22087.09$, a średnia $24977.43$.
+
+```{r echo=FALSE}
+p1 <- sum(between(D, m - sd, m + sd))/length(D)
+p2 <- sum(between(D, m - 2*sd, m + 2*sd))/length(D)
+p3 <- sum(between(D, m - 3*sd, m + 3*sd))/length(D)
+c(0.68, p1)
+c(0.95, p2)
+c(0.997, p3)
+```
+
+Największą różnicę widać dla pierwszego przedziału - leży w nim znacznie większy odsetek obserwacji, niż wynikałoby z zasady trzech sigm.
+Jest tak dlatego, że przez udział obserwacji odstających przedział ten jest szerszy, niż powinien.
+
+```{r echo=FALSE}
+qqnorm(D, pch = 1, frame = FALSE, main = 'QQ-plot dla zmiennej D i rozkładu normalnego')
+qqline(D, col = "steelblue", lwd = 2)
+```
+
+
+Na wykresie można zauważyć obserwacje odstające zaburzające normalność rozkładu. Bliżej środka punkty leżą blisko prostej.
+
+### Zadanie 3a
+**Lemat**
+
+Niech $D = U^2$, $E[U] = \mu$ oraz $Var[U] = \sigma^2$. Wtedy $E[D] = \mu^2 + \sigma^2$. Dowód:
+$$E[D] = E[U^2] = E[U - \mu + \mu]^2 = E[U-\mu]^2 - 2E[(U-\mu)\mu] + E[\mu]^2 = Var[U] - 2\mu E[U - \mu] + \mu^2 = \sigma^2 + \mu^2$$
+
+Stąd $E[D] - (E[U])^2 = \sigma^2 + \mu^2 - \mu^2 = \sigma^2 \geq 0$.
+
+W celu obliczenia pierwiastka, najpierw przesuwamy cały wektor D o jego najniższą wartość - w ten sposób unikniemy problemu z wartościami ujemnymi.
+średnia $D_1$ powinna być większa niż kwadrat średniej $U$ o wartość wariancji $U$. Uwaga: wbudowana funkcja `var` oblicza nieobciążony estymator wariancji z $n-1$ w mianowniku - w tym przypadku chodzi nam jednak o wariancję liczoną "dla populacji", czyli `mean((U-mean(U))^2` i tylko taki sposób daje dobre wyniki.
+```{r echo=FALSE}
+D1 <- D + min(D) # przesuniety wektor dochodów
+U <- sqrt(D1) # tzn. że D1 = U^2
+```
+Ponieważ dane zostały przesunięte, w podpunkcie a. porównałam kwadrat średniej $U = \sqrt{D_1}$ ze średnią zmiennej $D_1$. Różnica pomiędzy 
+średnimi $D1$ i $D$ jest równa początkowemu przesunięciu.
+```{r echo=FALSE}
+data.frame(sq_mean_U = mean(U)^2, mean_D1 = mean(D1), sigma_U = mean((U-mean(U))^2)
+) %>% mutate(diff_mD1_mU2 = mean_D1 - sq_mean_U)
+```
+W dalszej części polecenia rysujemy histogram zmiennej $U$ - dla porównania obok zamieściłam histogram $D_1$, jednak okazało się, że różnica w skali tych danych jest zbyt mała, żeby była widoczna na takim wykresie, nawet dla dużej liczby przedziałów.
+```{r, echo = FALSE}
+hist3 <- qplot(D, geom = 'histogram', xlab = '', main = 'Histogram zmiennej D1', fill = I('red'), alpha = I(0.5), bins = 100)
+hist2 <- qplot(D, geom = 'histogram', xlab = '', main = 'Histogram zmiennej U', fill = I('blue'), alpha = I(0.5), bins = 100)
+library(gridExtra)
+grid.arrange(hist3, hist2, ncol = 2)
+```
+Ostatnią częścią podpunktu jest wyznaczenie frakcji osób z wykształceniem wyższym - zadanie realizuje poniższy kod:
+```{r}
+pw <- nrow(filter(income, Education >= 5))/nrow(income)
+pw
+```
+### Zadanie 3b
+Estymatorem $\mu$ jest średnia próbkowa, a estymatorem $p$ proporcja w próbie. Konstrukcja przedziału ufności dla $\mu$ została opisana w poprzednich zadaniach.
+Klasyczny przedział ufności dla $p$ w próbie o wystarczająco dużej liczebności (pozwalającej na przybliżanie rozkładem normalnym, powiedzmy $n > 30$) jest postaci:
+$$(\bar{p} - u_{1 - \frac{\alpha}{2}} \sqrt{\frac{\bar{p}(1-\bar{p})}{n}}), \bar{p} + u_{1 - \frac{\alpha}{2}} \sqrt{\frac{\bar{p}(1-\bar{p})}{n}})$$
+gdzie $\bar{p}$ jest estymatorem $p$. 
+```{r}
+przedzial_mu <- function(V, sd_pop, poziom = 0.95){
+  # Funkcja zwraca lewy i prawy brzeg przedziału ufności dla wartosci oczekiwanej; znany parametr sd_pop -> rozklad normalny
+  s <- sd_pop 
+  meanX <- mean(V)
+  n <- length(V)
+  u <- qnorm(p = 1 - (1-poziom)/2)
+  low <- meanX - u*s/sqrt(n)
+  high <- meanX + u*s/sqrt(n)
+  return(c(low = low, high = high))
+}
+
+przedzial_p <- function(V, poziom = 0.95){
+  # Funkcja zwraca lewy i prawy brzeg przedziału ufności dla p; V powinien być wektorem TRUE / FALSE
+  p <- sum(V)/length(V) # estymator p
+  n <- length(V)
+  u <- qnorm(p = 1 - (1-poziom)/2)
+  low <- p - u*sqrt((p*(1-p)/n))
+  high <- p + u*sqrt((p*(1-p)/n))
+  return(c(low = low, high = high))
+}
+```
+Sprawdzimy, czy przedziały konstruowane o próbę o liczebności 200 zawierają rzeczywiste wartości parametrów:
+```{r echo=FALSE}
+U_sample <- sample(U, 200)
+sd_U <- sqrt(mean((U - mean(U))^2))
+przedzial_mu_U_sample = przedzial_mu(U_sample, sd_pop = sd_U)
+data.frame(low = przedzial_mu_U_sample["low"], real_mu_U = mean(U), high = przedzial_mu_U_sample["high"]) %>% mutate(inside = between(real_mu_U, low, high))
+
+D_sample <- sample(D, 200)
+sd_D <- sqrt(mean((D - mean(D))^2))
+przedzial_mu_D_sample = przedzial_mu(D, sd_D)
+data.frame(low = przedzial_mu_D_sample["low"], real_mu_D = mean(D), high = przedzial_mu_D_sample["high"]) %>% mutate(inside = between(real_mu_D, low, high))
+
+Vp <- income$Education >= 5 # wektor TRUE/FALSE
+V_sample <- sample(Vp, 200)
+przedzial_p_sample = przedzial_p(V_sample)
+data.frame(low = przedzial_p_sample["low"], real_p = pw, high = przedzial_p_sample["high"]) %>% mutate(inside = between(pw, low, high))
+```
+
+Wszystkie przedziały zawierały prawdziwe wartości parametru. Szanse na to w każdym z przypadków wynosiły 95%.
+
+### Zadanie 3c
+```{r}
+it = 200
+est_p <- numeric(length = it)
+est_mu_U <- numeric(length = it)
+est_mu_D <- numeric(length = it)
+
+# liczniki: ile razy prawdziwy parametr zawiera sie w przedziale?
+zawiera_p <- 0
+zawiera_U <- 0
+zawiera_D <- 0
+
+for (i in 1:it){
+  # pobranie prób 
+  sampleV <- sample(Vp,200)
+  sampleU <- sample(U,200)
+  sampleD <- sample(D,200)
+  # obliczenie estymatorow
+  p <- sum(sampleV)/200
+  mu_U <- mean(sampleU)
+  mu_D <- mean(sampleD)
+  # zapisanie ich do wektorow w celu pozniejszego rysowania histogramu
+  est_p[i] <- p
+  est_mu_U[i] <- mu_U
+  est_mu_D[i] <- mu_D
+  # sprawdzenie przedzialow
+  pp <- przedzial_p(sampleV)
+  pU <-przedzial_mu(sampleU, sd_U)
+  pD <- przedzial_mu(sampleD, sd_D)
+  if (between(pw, pp["low"], pp["high"])){zawiera_p <- zawiera_p + 1}
+  if (between(mean(U), pU["low"], pU["high"])){zawiera_U <- zawiera_U + 1}
+  if (between(mean(D), pD["low"], pD["high"])){zawiera_D <- zawiera_D + 1}
+}
+
+p1 <- qplot(est_p, geom = 'histogram', main = 'Rozklad probkowy estymatora p', xlab = '') + theme(plot.title = element_text(size= 6))
+p2 <- qplot(est_mu_U, geom = 'histogram', main = 'Rozklad probkowy estymatora sredniej dla U', xlab = '') + theme(plot.title = element_text(size= 6))
+p3 <- qplot(est_mu_D, geom = 'histogram', main = 'Rozklad probkowy estymatora sredniej dla D', xlab = '') + theme(plot.title = element_text(size=6))
+grid.arrange(p1,p2,p3, ncol = 3)
+```
+
+Rozkłady przypominają rozkład normalny. W dalszej części zadania sprawdzamy jeszcze, jak często przedziały ufności zawierały prawdziwy parametr:
+
+```{r}
+data.frame(frakcja = zawiera_p / 200, srednia_U = zawiera_U / 200, srednia_D = zawiera_D / 200)
+```
+Odsetki są znacząco wyższe niż teoretyczne - myślę, że przedział jest błędnie skonstruowany i zbyt szeroki.
+
+### Zadanie 4
+W tym zadaniu, ponieważ nieznane są parametry populacji, korzystamy z kwantyli rozkładu t-Studenta.
+
+```{r echo=TRUE}
+library(stats)
+load('grades.RData')
+IQ <- grades$IQ
+P <- grades$TestPsych
+przedzial_mu_t <- function(V, poziom = 0.95){
+  # Funkcja zwraca lewy i prawy brzeg przedziału ufności dla wartosci oczekiwanej z nieznanym parametrem w populacji - korzystając z rozkładu t-Studenta
+  s <- sd(V) ## z dokumentacji wynika, że to liczy estymator z mianownikiem n-1
+  meanX <- mean(V)
+  n <- length(V)
+  t <- qt(p = 1 - (1-poziom)/2, df = n-1) # kwantyl rozkładu studenta z n-1 df
+  low <- meanX - t*s/sqrt(n)
+  high <- meanX + t*s/sqrt(n)
+  return(c(low = low, high = high))
+}
+przedzial_mu_t(IQ) 
+przedzial_mu_t(P)  
+```

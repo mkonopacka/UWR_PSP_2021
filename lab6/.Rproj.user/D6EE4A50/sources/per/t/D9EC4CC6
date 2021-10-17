@@ -1,0 +1,27 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1623226895528.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1323045920",
+    "id" : "D9EC4CC6",
+    "lastKnownWriteTime" : 1623792014,
+    "last_content_update" : 1623911282642,
+    "path" : "/media/martyna/Data/UWR_VI/PSP/lab6/lab6_konopacka.Rmd",
+    "project_path" : "lab6_konopacka.Rmd",
+    "properties" : {
+        "cursorPosition" : "63,6",
+        "last_setup_crc32" : "",
+        "scrollLine" : "54",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

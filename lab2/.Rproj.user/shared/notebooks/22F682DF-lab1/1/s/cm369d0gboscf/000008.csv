@@ -1,0 +1,5 @@
+"0",""
+"0","# GENIALNY OPERATOR ZAMAIĘTAĆ GO! Nadpisuje dane w obiekcie plot"
+"0","plot1 %+% grades_stats_gender +"
+"0","  facet_grid(rows = vars(Gender), cols = vars(var), scales = 'free') +"
+"0","  labs(x = '', y = '', title = 'Histogramy zmiennych ilosciowych w zbiorze grades.txt', subtitle = 'Porównanie wyników ze względu na płeć')"

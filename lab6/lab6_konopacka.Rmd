@@ -1,0 +1,109 @@
+---
+title: "Laboratorium 6: Moc testu"
+author: "Martyna Konopacka"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+set.seed(1)
+```
+**Moc testu** (ozn. $1 - \beta$) to prawdopodobieństwo popełnienia błędu typu I, czyli odrzucenia hipotezy zerowej $H_0$ w sytuacji, gdy tak naprawdę jest ona prawdziwa. Jest to zatem warunkowe prawdopodobieństwo, że statystyka testowa znajdzie się w obszarze krytycznym pod warunkiem $H_0$:
+$$1 - \beta = P(T \in C | H_0)$$ 
+
+### Zadanie 1
+Moc zależy od różnych czynników takich jak np. rozmiar próby czy wielkość efektu który chcemy wykryć
+i jest obliczana różnie w zależności od konkretnego problemu. W zadaniu rozpatrujemy hipotezę dotyczącą $\mu$ - średniej tygodniowej liczby godzin oglądania telewizji wśród studentów:
+
+$H_0: \mu = 18.5$ vs $H_1: \mu \leq 18.5$
+
+Zakładamy ponadto, że w rzeczywistości $\mu = 14.5$, a naszym celem jest uzyskanie testu o mocy $80%$. Dane:
+
+* $\mu = 14.5$
+* $\alpha = 0.05$ 
+* $\sigma = 12.5$ 
+
+### 1a
+Obliczamy jak należałoby zmienić rozmiar próby, żeby uzyskać moc $80%$. Statystyką testową jest $T = \frac{\bar{x} - 18.5}{\sigma/\sqrt{n}}$, a obszar krytyczny jest postaci $(- \infty, - z_{0.025}) \cup (z_{0.025}, + \infty)$ oraz $z_{0.025} = 1.96$.
+
+$$1 - \beta = P(T \leq -z_{0.025} \lor T \geq z_{0.025}) | \mu = 18.5)$$
+Po przekształceniach otrzymamy warunek na rozmiar próby:
+$$n \approx (\frac{\sigma(z_{\alpha/2} + z_{\beta})}{\mu_0 - \mu})^2$$
+
+
+
+
+```{r echo=TRUE}
+mu <- 14.5
+mu0 <- 18.5
+alpha <- 0.05
+sd <- 12.5
+beta <- 1 - 0.8
+z_a <- qnorm(1-alpha)
+z_b <- qnorm(1-beta)
+n <- (sd*(z_a + z_b)/(mu0 - mu))^2
+n
+```
+
+Przyda się funkcja sprawdzająca czy statystyka testowa znalazła się w obszarze krytycznym:
+```{r echo=TRUE}
+czy_odrzucic_H0 <- function(mu, mu0, sd, alpha, n){
+  # obliczenie T
+  T<-(mu-mu0)*sqrt(n)/sd
+  z <- qnorm(1-alpha)
+  if (T < -z){return(TRUE)}
+  else{
+    return(FALSE)
+  }
+}
+```
+
+Teraz losujemy 100 razy próbę z rozkładu
+i obliczamy w jakim odsetku losowań odrzuciliśmy hipotezę zerową:
+```{r}
+n = 12
+sum <- 0
+for (i in 1:100){
+  X <- rnorm(n,mu,sd)
+  mu <- mean(X)
+  if (czy_odrzucic_H0(mu, mu0, sd = 12.5, alpha, n)){
+    sum <- sum + 1
+  }
+}
+odsetek <- sum/100
+odsetek
+```
+
+### Zad 1b
+```{r}
+n = 12
+sum <- 0
+for (i in 1:100){
+  sd_b <- sd(rnorm(12,14.5,12.5))
+  X <- rnorm(n,mu,sd)
+  mu <- mean(X)
+  if (czy_odrzucic_H0(mu, mu0, sd = sd_b, alpha, n)){
+    sum <- sum + 1
+  }
+}
+odsetek <- sum/100
+odsetek
+```
+
+### Zad 1c
+```{r}
+k = 12
+sum <- 0
+for (i in 1:100){
+  c <- rchisq(k-1,alpha)
+  sd_c <- 12.5*sqrt((k-1)/c)
+  X <- rnorm(n,mu,sd)
+  mu <- mean(X)
+  if (czy_odrzucic_H0(mu, mu0, sd = sd_c, alpha, n)){
+    sum <- sum + 1
+  }
+}
+odsetek <- sum/100
+odsetek
+```

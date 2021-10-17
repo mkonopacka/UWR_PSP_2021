@@ -1,0 +1,213 @@
+---
+title: 'PSP: Laboratorium 1'
+author: "Martyna Konopacka"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(gridExtra)
+
+# Wczytanie danych
+grades <- fread(file = "grades.txt", 
+              data.table = FALSE, 
+              check.names = TRUE, 
+              stringsAsFactors = TRUE,
+              col.names = c("Id", "GPA", "IQ", "Gender", "TestPsych"))
+
+income <- fread(file = "income.dat", 
+               data.table = FALSE, 
+               check.names = TRUE, 
+               stringsAsFactors = TRUE,
+               col.names = c("Id", "Age", "Education", "Gender", "Income", "Sector"))
+
+income$Gender <- factor(income$Gender)
+levels(income$Gender) <- c('M','K')
+```
+
+###  Zadanie 1
+```{r}
+# Grupowanie i przekształcenie dataframe
+grades %>% select(c(IQ, GPA, TestPsych, Gender)) %>% gather('var', 'val', GPA, TestPsych, IQ) %>% group_by(var) -> grades1
+
+# Zebranie odpowiednich statystyk
+grades_stats <- 
+  grades1 %>% summarise(mean = mean(val), median = median(val),
+                        Q1 = quantile(val, 0.25), Q3 = quantile(val, 0.75),
+                        min = min(val), max = max(val),
+                        sd = sd(val), variance = var(val),
+                        CV = sd(val)/mean(val)) 
+
+grades_stats %>% knitr::kable(caption = 'Wartości statystyk dla zmiennych ilościowych w zbiorze grades.txt')
+
+# Histogramy
+plot1 <-
+  ggplot(grades_stats) +
+  geom_histogram(data = grades1, aes(x = val, fill = var), bins = 15, alpha = 0.4) +
+  theme_bw() +
+  theme(plot.title.position = "plot", plot.caption.position =  "plot", legend.position = "none") +
+  geom_vline(aes(xintercept = mean), col = 'red') +
+  geom_vline(aes(xintercept = Q1), linetype = 'dashed') +
+  geom_vline(aes(xintercept = median), linetype = 'dashed') +
+  geom_vline(aes(xintercept = Q3), linetype = 'dashed')
+
+plot1 + 
+  facet_wrap(~var, scales = 'free') + 
+  labs(x = '', y = '', title = 'Histogramy zmiennych ilosciowych w zbiorze grades.txt', subtitle = 'Linią ciągłą zaznaczono średnie, liniami przerywanymi kwartyle 25%, 50%, 75%')
+```
+
+* Wszystkie rozkłady są lewostronnie skośne - ich średnie leżą na lewo od mediany, przy czym najmniej skośny jest histogram zmiennej IQ, który wygląda dosyć symetrycznie. 
+* Rozstępy międzykwartylowe są stosunkowo małe w porównaniu z rozrzutem danych.
+* Małe współczynniki zmienności wiążą się ze stosunkowo krótkimi ogonami wszystkich trzech rozkładów.
+
+```{r}
+grades2 <- grades1 %>% group_by(Gender, var) 
+grades_stats_gender <- 
+  grades2 %>% summarise(mean = mean(val), median = median(val),
+                        Q1 = quantile(val, 0.25), Q3 = quantile(val, 0.75),
+                        min = min(val), max = max(val),
+                        sd = sd(val), variance = var(val),
+                        CV = sd(val)/mean(val)) 
+
+grades_stats_gender %>% knitr::kable(caption = 'Porównanie statystyk dla zmiennych ilościowych ze względu na płeć')
+
+# GENIALNY OPERATOR ZAMAIĘTAĆ GO! Nadpisuje dane w obiekcie plot
+plot1 %+% grades_stats_gender +
+  facet_grid(rows = vars(Gender), cols = vars(var), scales = 'free') +
+  labs(x = '', y = '', title = 'Histogramy zmiennych ilosciowych w zbiorze grades.txt', subtitle = 'Porównanie wyników ze względu na płeć')
+```
+
+* Histogramy ponownie są lewostronnie skośne - jedyny wyjątek to IQ w grupie mężczyzn, w tym przypadku średnia i mediana prawie się pokrywają z tendencją do skośności prawostronnej. 
+* Można zauważyć, że rozkłady w grupie mężczyzn mają dłuższe ogony i większe współczynniki zmienności. 
+* Histogram wyników testu psychologicznego dla mężczyzn jest bimodalny.
+
+### Zadanie 2
+```{r}
+plt27<- qplot(data = grades,
+      x = IQ,
+      main = "27 klas",
+      xlab = "",
+      ylab = "",
+      geom = "histogram",
+      bins = 27
+)
+
+plt5 <- qplot(data = grades,
+      x = IQ,
+      main = "5 klas",
+      xlab = "",
+      ylab = "",
+      geom = "histogram",
+      bins = 5
+)
+
+plt50 <- qplot(data = grades,
+      x = IQ,
+      main = "50 klas",
+      xlab = "",
+      ylab = "",
+      geom = "histogram",
+      bins = 50
+)
+
+plt15 <- qplot(data = grades,
+      x = IQ,
+      main = "15 klas",
+      xlab = "",
+      ylab = "",
+      geom = "histogram",
+      bins = 15
+)
+
+plt78 <- qplot(data = grades,
+      x = IQ,
+      main = "78 klas",
+      xlab = "",
+      ylab = "",
+      geom = "histogram",
+      bins = 78
+)
+```
+
+```{r}
+grid.arrange(plt5, plt15, plt27, plt50, plt78, ncol = 5)
+```
+
+Zbyt mało klas sprawia, że nie widzimy faktycznego kształtu danych - zbyt dużo, że dane są nieczytelne. W tym wypadku najlepszym wyborem będzie 10-15 klas. N
+
+### Zadanie 3
+```{r}
+# Zebranie statystyk
+income_stats <- 
+  income %>%
+  mutate(val = Income) %>%
+  summarise(mean = mean(val), median = median(val),
+                        Q1 = quantile(val, 0.25), Q3 = quantile(val, 0.75), 
+                        out_l = Q1 - 1.5*(Q3-Q1),out_r = Q3 + 1.5*(Q3-Q1),
+                        min = min(val), max = max(val),
+                        sd = sd(val), variance = var(val),
+                        CV = sd(val)/mean(val)) 
+
+# Z podziałem na płeć
+income_stats_gender <- 
+  income %>%
+  mutate(val = Income) %>%
+  group_by(Gender) %>%
+  summarise(mean = mean(val), median = median(val),
+                        Q1 = quantile(val, 0.25), Q3 = quantile(val, 0.75), 
+                        out_l = Q1 - 1.5*(Q3-Q1),out_r = Q3 + 1.5*(Q3-Q1),
+                        min = min(val), max = max(val),
+                        sd = sd(val), variance = var(val),
+                        CV = sd(val)/mean(val)) 
+
+plot2 <-
+  ggplot(income_stats) +
+  geom_histogram(data = income %>% mutate(val = Income), aes(x = val), bins = 15, alpha = 0.4) +
+  theme_bw() +
+  labs(x = '', y = '', title = 'Histogram zarobków', subtitle = 'Czerwoną linią zaznaczono średnie, liniami przerywanymi kwartyle, a niebieskimi progi obserwacji odstających') +
+  theme(plot.title.position = "plot", plot.caption.position =  "plot", legend.position = "none") +
+  geom_vline(aes(xintercept = mean), col = 'red') +
+  geom_vline(aes(xintercept = Q1), linetype = 'dashed') +
+  geom_vline(aes(xintercept = median), linetype = 'dashed') +
+  geom_vline(aes(xintercept = Q3), linetype = 'dashed') +
+  geom_vline(aes(xintercept = out_l), col = 'blue') +
+  geom_vline(aes(xintercept = out_r), col = 'blue') 
+
+plot2
+```
+
+* Histogram jest prawostronnie skośny, z długim prawym ogonem.
+* Miary rozrzutu można wyczytać z tabeli statystyk - kształt wykresu wskazuje m.in. na mały współczynnik zmienności, duży rozrzut i względnie mały rozstęp międzykwartylowy.
+* Na wykresie widać występujące z pewnymi odstępami obserwacje odstające.
+
+```{r}
+income_stats %>% knitr::kable(caption = 'Statystyki zmiennej Income')
+```
+```{r}
+income_stats_gender %>% knitr::kable(caption = 'Statystyki zmiennej Income')
+
+plot2 %+% income_stats_gender +
+  facet_wrap(~Gender) +
+  labs(subtitle = 'Porównanie ze względu na płeć')
+```
+
+* Oba histogramy są prawostronnie skośne i stosunkowo podobne.
+* Patrząc na dane i wykresy można stwierdzić np. że zarobki mężczyzn cechują się większą wariancją,
+są statystycznie wyższe: wyższe jest zarówno ich minimum, jak i maximum oraz średnia.
+
+Filtrując zbiór danych możemy wydzielić wszystkie obserwacje odstające, na przykład w celu poddania ich analizie.
+```{r echo=TRUE}
+income_outliers <- income %>% filter(! between(Income, income_stats$out_l, income_stats$out_r))
+head(income_outliers)
+```
+
+Obliczymy jeszcze odsetek obserwacji odstających w całym zbiorze:
+```{r echo=TRUE}
+nrow(income_outliers)/nrow(income)
+```
+
